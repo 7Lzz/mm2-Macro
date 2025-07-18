@@ -85,7 +85,7 @@ jobs:
         release_name: MM2 Macro v${{ github.run_number }}
         body: |
           Automatic build from commit ${{ github.sha }}
-ECHO is off.
+          
           **Download:**
           - Windows: MM2-Macro-Windows.exe
           - macOS: MM2-Macro-macOS
