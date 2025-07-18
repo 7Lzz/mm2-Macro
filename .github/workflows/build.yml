@@ -63,17 +63,11 @@ jobs:
       run: |
         cd dist
         # Remove extended attributes and fix permissions
-        sudo xattr -cr MM2-Macro-macOS.app
-        sudo chmod -R 755 MM2-Macro-macOS.app
-        sudo chmod +x MM2-Macro-macOS.app/Contents/MacOS/MM2-Macro-macOS
+        xattr -cr MM2-Macro-macOS.app || echo "xattr failed, continuing"
+        chmod -R 755 MM2-Macro-macOS.app
+        chmod +x MM2-Macro-macOS.app/Contents/MacOS/MM2-Macro-macOS
         
-        # Create a simple self-signed certificate for basic signing
-        security create-keychain -p temp123 temp.keychain
-        security default-keychain -s temp.keychain
-        security unlock-keychain -p temp123 temp.keychain
-        security add-trusted-cert -d -r trustRoot -k temp.keychain /System/Library/Keychains/SystemRootCertificates.keychain
-        
-        # Create entitlements for keyboard access
+        # Create entitlements file for reference
         cat > entitlements.plist << 'EOF'
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -89,8 +83,8 @@ jobs:
         </plist>
         EOF
         
-        # Try to sign with ad-hoc signature
-        codesign --force --deep --sign - --entitlements entitlements.plist MM2-Macro-macOS.app || echo "Signing failed, continuing anyway"
+        # Try basic ad-hoc signing (will fail in CI but that's ok)
+        codesign --force --deep --sign - MM2-Macro-macOS.app || echo "Code signing not available in CI, users will need to handle security warnings"
 
     - name: Create macOS distribution archive
       run: |
