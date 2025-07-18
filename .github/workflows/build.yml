@@ -28,7 +28,7 @@ jobs:
         pyinstaller --onefile --windowed --name "MM2-Macro-Windows" main.py
 
     - name: Upload Windows executable
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: MM2-Macro-Windows
         path: dist/MM2-Macro-Windows.exe
@@ -53,7 +53,7 @@ jobs:
         pyinstaller --onefile --windowed --name "MM2-Macro-macOS" main.py
 
     - name: Upload macOS executable
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: MM2-Macro-macOS
         path: dist/MM2-Macro-macOS
@@ -64,50 +64,30 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
     - name: Download Windows artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: MM2-Macro-Windows
         path: ./windows/
 
     - name: Download macOS artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: MM2-Macro-macOS
         path: ./macos/
 
     - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v1
       with:
         tag_name: v${{ github.run_number }}
-        release_name: MM2 Macro v${{ github.run_number }}
+        name: MM2 Macro v${{ github.run_number }}
         body: |
           Automatic build from commit ${{ github.sha }}
           
           **Download:**
           - Windows: MM2-Macro-Windows.exe
           - macOS: MM2-Macro-macOS
+        files: |
+          ./windows/MM2-Macro-Windows.exe
+          ./macos/MM2-Macro-macOS
         draft: false
         prerelease: false
-
-    - name: Upload Windows Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./windows/MM2-Macro-Windows.exe
-        asset_name: MM2-Macro-Windows.exe
-        asset_content_type: application/octet-stream
-
-    - name: Upload macOS Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./macos/MM2-Macro-macOS
-        asset_name: MM2-Macro-macOS
-        asset_content_type: application/octet-stream
