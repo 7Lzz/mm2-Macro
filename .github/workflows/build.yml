@@ -1,0 +1,113 @@
+name: Build MM2 Macro Executables
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        pip install PyQt5 keyboard mouse psutil pywin32 pyinstaller
+
+    - name: Build Windows executable
+      run: |
+        pyinstaller --onefile --windowed --name "MM2-Macro-Windows" main.py
+
+    - name: Upload Windows executable
+      uses: actions/upload-artifact@v3
+      with:
+        name: MM2-Macro-Windows
+        path: dist/MM2-Macro-Windows.exe
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        pip install PyQt5 keyboard mouse psutil pyobjc-framework-Cocoa pyinstaller
+
+    - name: Build macOS executable
+      run: |
+        pyinstaller --onefile --windowed --name "MM2-Macro-macOS" main.py
+
+    - name: Upload macOS executable
+      uses: actions/upload-artifact@v3
+      with:
+        name: MM2-Macro-macOS
+        path: dist/MM2-Macro-macOS
+
+  create-release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    steps:
+    - name: Download Windows artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: MM2-Macro-Windows
+        path: ./windows/
+
+    - name: Download macOS artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: MM2-Macro-macOS
+        path: ./macos/
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.run_number }}
+        release_name: MM2 Macro v${{ github.run_number }}
+        body: |
+          Automatic build from commit ${{ github.sha }}
+ECHO is off.
+          **Download:**
+          - Windows: MM2-Macro-Windows.exe
+          - macOS: MM2-Macro-macOS
+        draft: false
+        prerelease: false
+
+    - name: Upload Windows Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./windows/MM2-Macro-Windows.exe
+        asset_name: MM2-Macro-Windows.exe
+        asset_content_type: application/octet-stream
+
+    - name: Upload macOS Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./macos/MM2-Macro-macOS
+        asset_name: MM2-Macro-macOS
+        asset_content_type: application/octet-stream
