@@ -2,84 +2,20 @@ import sys
 import json
 import time
 import threading
-import platform
-import traceback
 from pathlib import Path
 import psutil
-import keyboard
-
-try:
-    import mouse
-    MOUSE_AVAILABLE = True
-except (ImportError, OSError) as e:
-    print(f"Mouse library not available: {e}")
-    MOUSE_AVAILABLE = False
-    mouse = None
-
-try:
-    from PyQt5.QtWidgets import *
-    from PyQt5.QtCore import *
-    from PyQt5.QtGui import *
-    from PyQt5.QtCore import pyqtSignal as Signal
-    QT_BINDING = "PyQt5"
-except ImportError:
-    try:
-        from PySide6.QtWidgets import *
-        from PySide6.QtCore import *
-        from PySide6.QtGui import *
-        from PySide6.QtCore import Signal
-        QT_BINDING = "PySide6"
-    except ImportError:
-        from PySide2.QtWidgets import *
-        from PySide2.QtCore import *
-        from PySide2.QtGui import *
-        from PySide2.QtCore import Signal
-        QT_BINDING = "PySide2"
-
-def show_error(title, message, details=None):
-    """Show error dialog with details"""
-    try:
-        app = QApplication.instance()
-        if app is None:
-            app = QApplication(sys.argv)
-        
-        msg_box = QMessageBox()
-        msg_box.setIcon(QMessageBox.Critical)
-        msg_box.setWindowTitle(title)
-        msg_box.setText(message)
-        
-        if details:
-            msg_box.setDetailedText(details)
-        
-        msg_box.exec_()
-    except Exception as e:
-        print(f"Error showing dialog: {e}")
-        print(f"Original error: {title} - {message}")
-        if details:
-            print(f"Details: {details}")
-
-def handle_exception(exc_type, exc_value, exc_traceback):
-    """Global exception handler"""
-    if issubclass(exc_type, KeyboardInterrupt):
-        sys.__excepthook__(exc_type, exc_value, exc_traceback)
-        return
+import win32gui
+import win32process
+from pynput import keyboard as pynput_keyboard
+from pynput import mouse as pynput_mouse
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtCore import pyqtSignal as Signal
+QT_BINDING = "PyQt5"
     
-    error_msg = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
-    show_error("Application Error", str(exc_value), error_msg)
-
-sys.excepthook = handle_exception
-
-if platform.system() == "Windows":
-    try:
-        import win32gui
-        import win32process
-    except ImportError:
-        print("Warning: win32 modules not available")
-elif platform.system() == "Darwin":
-    try:
-        from AppKit import NSWorkspace, NSRunningApplication
-    except ImportError:
-        print("Warning: AppKit not available")
+def exec_dialog(dialog):
+    return dialog.exec_() if QT_BINDING == "PyQt5" else dialog.exec()
 
 class ClickableLabel(QLabel):
     clicked = Signal()
@@ -116,12 +52,11 @@ class KeybindCaptureDialog(QDialog):
         self.setWindowTitle("Capture Keybind")
         self.setFixedSize(350, 150)
         self.captured_key = None
-        self.key_modifiers = []
         
         layout = QVBoxLayout()
         layout.setSpacing(15)
         
-        self.info_label = QLabel("Press any key or mouse button..." if MOUSE_AVAILABLE else "Press any key...")
+        self.info_label = QLabel("Press any key or mouse button...")
         self.info_label.setAlignment(Qt.AlignCenter)
         self.info_label.setStyleSheet("font-size: 14px; color: #00d4ff;")
         layout.addWidget(self.info_label)
@@ -159,57 +94,36 @@ class KeybindCaptureDialog(QDialog):
             key_sequence = QKeySequence(key)
             key_name = key_sequence.toString()
             
-            if key == Qt.Key_Space:
-                key_name = "space"
-            elif key == Qt.Key_Tab:
-                key_name = "tab"
-            elif key == Qt.Key_Return or key == Qt.Key_Enter:
-                key_name = "enter"
-            elif key == Qt.Key_Escape:
-                key_name = "escape"
-            elif key == Qt.Key_Backspace:
-                key_name = "backspace"
-            elif key == Qt.Key_Delete:
-                key_name = "delete"
-            elif key == Qt.Key_Up:
-                key_name = "up"
-            elif key == Qt.Key_Down:
-                key_name = "down"
-            elif key == Qt.Key_Left:
-                key_name = "left"
-            elif key == Qt.Key_Right:
-                key_name = "right"
+            key_map = {
+                Qt.Key_Space: "space", Qt.Key_Tab: "tab", Qt.Key_Return: "enter",
+                Qt.Key_Enter: "enter", Qt.Key_Escape: "escape", Qt.Key_Backspace: "backspace",
+                Qt.Key_Delete: "delete", Qt.Key_Up: "up", Qt.Key_Down: "down",
+                Qt.Key_Left: "left", Qt.Key_Right: "right"
+            }
+            
+            if key in key_map:
+                key_name = key_map[key]
             elif key_name == "":
-                text = event.text()
-                if text:
-                    key_name = text.lower()
-                else:
-                    key_name = f"key_{key}"
+                key_name = event.text().lower() if event.text() else f"key_{key}"
             
             self.captured_key = key_name.lower()
             self.current_key_label.setText(f"Key: {self.captured_key}")
             self.ok_btn.setEnabled(True)
             return True
             
-        elif event.type() == QEvent.MouseButtonPress and MOUSE_AVAILABLE:
+        elif event.type() == QEvent.MouseButtonPress:
             button = event.button()
-            if button == Qt.LeftButton:
-                self.captured_key = "mouse_left"
-            elif button == Qt.RightButton:
-                self.captured_key = "mouse_right"
-            elif button == Qt.MiddleButton:
-                self.captured_key = "mouse_middle"
-            elif button == Qt.XButton1:
-                self.captured_key = "mouse_x1"
-            elif button == Qt.XButton2:
-                self.captured_key = "mouse_x2"
-            else:
-                return False
-                
-            self.current_key_label.setText(f"Mouse: {self.captured_key.replace('mouse_', '').title()} Button")
-            self.ok_btn.setEnabled(True)
-            return True
+            button_map = {
+                Qt.LeftButton: "mouse_left", Qt.RightButton: "mouse_right",
+                Qt.MiddleButton: "mouse_middle", Qt.XButton1: "mouse_x1", Qt.XButton2: "mouse_x2"
+            }
             
+            if button in button_map:
+                self.captured_key = button_map[button]
+                self.current_key_label.setText(f"Mouse: {self.captured_key.replace('mouse_', '').title()} Button")
+                self.ok_btn.setEnabled(True)
+                return True
+        
         return super().eventFilter(obj, event)
     
     def keyPressEvent(self, event):
@@ -261,7 +175,7 @@ class MacroWidget(QWidget):
         
     def change_keybind(self):
         dialog = KeybindCaptureDialog(self)
-        if dialog.exec_() == QDialog.Accepted and dialog.captured_key:
+        if exec_dialog(dialog) == QDialog.Accepted and dialog.captured_key:
             for macro_key, macro_data in self.parent_gui.macros.items():
                 if macro_key != self.macro_key and macro_data.get("keybind") == dialog.captured_key:
                     QMessageBox.warning(self, "Keybind In Use", 
@@ -324,25 +238,18 @@ class MM2MacroGUI(QMainWindow):
         super().__init__()
         self.setWindowTitle("Seven's MM2 Macro v2.1")
         
-        self.settings_dir = Path("C:/Seven's Scripts/Seven's mm2 Macro") if platform.system() == "Windows" else Path.home() / ".seven_mm2_macro"
+        self.kb_controller = pynput_keyboard.Controller()
+        self.mouse_controller = pynput_mouse.Controller()
+
+        
+        self.settings_dir = Path("C:/Seven's Scripts/Seven's mm2 Macro")
         self.settings_file = self.settings_dir / "settings.json"
         
         self.settings = {
-            "window": {
-                "width": 1000,
-                "height": 800,
-                "x": None,
-                "y": None
-            },
-            "ui": {
-                "always_on_top": False,
-                "macros_enabled": True
-            },
+            "window": {"width": 650, "height": 550, "x": None, "y": None},
+            "ui": {"always_on_top": False, "macros_enabled": True},
             "keybinds": {},
-            "item_keys": {
-                "gg_sign": "6",
-                "prank_bomb": "7"
-            }
+            "item_keys": {"gg_sign": "6", "prank_bomb": "7"}
         }
         
         self.macros = {
@@ -354,17 +261,11 @@ class MM2MacroGUI(QMainWindow):
             "flex_walk_speed_glitch": {"name": "Flex Walk Speed Glitch", "keybind": None, "active": False}
         }
         
-        self.item_keys = {
-            "gg_sign": "6",
-            "prank_bomb": "7"
-        }
-        
+        self.item_keys = {"gg_sign": "6", "prank_bomb": "7"}
         self.gg_sign_thread = None
         self.gg_sign_running = False
-        self.active_hooks = []
-        self.mouse_hooks = []
+        self.active_listeners = []
         self.macros_enabled = True
-        self.keyboard_permission_checked = False
         
         self.load_settings()
         
@@ -381,72 +282,10 @@ class MM2MacroGUI(QMainWindow):
         self.apply_loaded_settings()
         
         QTimer.singleShot(100, self.setup_hotkeys)
-        QTimer.singleShot(2000, self.check_macos_permissions)
         
         self.status_thread = StatusThread(self)
         self.status_thread.status_update.connect(self.update_focus_status)
         self.status_thread.start()
-        
-    def check_macos_permissions(self):
-        """Check if macOS permissions are working and show alert if not"""
-        if platform.system() != "Darwin" or self.keyboard_permission_checked:
-            return
-            
-        self.keyboard_permission_checked = True
-        
-        # Try to test keyboard permission by attempting to register a test hook
-        try:
-            def test_callback(event):
-                pass
-            
-            # This will fail silently if no Input Monitoring permission
-            test_hook = keyboard.on_press(test_callback)
-            keyboard.unhook(test_hook)
-            
-            # Additional check - try to detect if we can actually capture events
-            QTimer.singleShot(1000, self.show_macos_permission_reminder)
-            
-        except Exception as e:
-            print(f"Keyboard permission test failed: {e}")
-            self.show_macos_permission_alert()
-    
-    def show_macos_permission_reminder(self):
-        """Show a reminder about macOS permissions"""
-        if platform.system() != "Darwin":
-            return
-            
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Information)
-        msg.setWindowTitle("macOS Permissions Required")
-        msg.setText("For keybinds to work properly on macOS:")
-        msg.setInformativeText("1. Open System Preferences → Security & Privacy → Privacy\n"
-                               "2. Click 'Input Monitoring' in the sidebar\n"
-                               "3. Click the lock to unlock settings\n"
-                               "4. Check the box next to 'MM2-Macro-macOS'\n"
-                               "5. Restart this application\n\n"
-                               "This permission allows the app to detect your keyboard shortcuts.")
-        msg.setStandardButtons(QMessageBox.Ok)
-        msg.exec_()
-    
-    def show_macos_permission_alert(self):
-        """Show alert when permissions definitely aren't working"""
-        if platform.system() != "Darwin":
-            return
-            
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Warning)
-        msg.setWindowTitle("Keyboard Access Required")
-        msg.setText("Keyboard shortcuts will not work without Input Monitoring permission.")
-        msg.setInformativeText("Please enable Input Monitoring permission in System Preferences and restart the app.")
-        msg.setDetailedText("Steps:\n"
-                           "1. Open System Preferences\n"
-                           "2. Go to Security & Privacy → Privacy\n"
-                           "3. Click 'Input Monitoring'\n"
-                           "4. Click the lock and enter your password\n"
-                           "5. Check the box next to this app\n"
-                           "6. Restart the application")
-        msg.setStandardButtons(QMessageBox.Ok)
-        msg.exec_()
         
     def setup_ui(self):
         central_widget = QWidget()
@@ -604,15 +443,8 @@ class MM2MacroGUI(QMainWindow):
         info_text = QLabel("• Quick Setup uses GG Sign and Prank Bomb\n"
                           "• Make sure your items are in the correct slots\n"
                           "• Changes are saved automatically\n"
-                          f"• Platform: {platform.system()}\n"
-                          f"• Qt Binding: {QT_BINDING}\n"
-                          f"• Mouse Support: {'Available' if MOUSE_AVAILABLE else 'Not Available (macOS limitation)'}\n\n"
-                          "macOS Users: If keybinds don't work, enable permissions:\n"
-                          "1. Open System Preferences → Security & Privacy → Privacy\n"
-                          "2. Click 'Input Monitoring' in the sidebar\n"
-                          "3. Click the lock to unlock settings\n"
-                          "4. Check the box next to 'MM2-Macro-macOS'\n"
-                          "5. Restart the application")
+                          "• Run as Administrator if hotkeys don't work\n"
+                          "• Install required modules: pip install keyboard mouse pywin32")
         info_text.setObjectName("infoLabel")
         info_text.setWordWrap(True)
         info_layout.addWidget(info_text)
@@ -991,127 +823,120 @@ class MM2MacroGUI(QMainWindow):
         
     def is_roblox_focused(self):
         try:
-            if platform.system() == "Windows":
-                hwnd = win32gui.GetForegroundWindow()
-                _, pid = win32process.GetWindowThreadProcessId(hwnd)
-                process = psutil.Process(pid)
-                process_name = process.name().lower()
-                return 'roblox' in process_name or 'robloxplayerbeta' in process_name
-            elif platform.system() == "Darwin":
-                try:
-                    app = NSWorkspace.sharedWorkspace().frontmostApplication()
-                    if app:
-                        app_name = app.localizedName().lower()
-                        return 'roblox' in app_name
-                except:
-                    pass
-            else:
-                for proc in psutil.process_iter(['pid', 'name']):
-                    try:
-                        if 'roblox' in proc.info['name'].lower():
-                            return True
-                    except:
-                        pass
+            hwnd = win32gui.GetForegroundWindow()
+            _, pid = win32process.GetWindowThreadProcessId(hwnd)
+            process = psutil.Process(pid)
+            process_name = process.name().lower()
+            return 'roblox' in process_name or 'robloxplayerbeta' in process_name
         except:
-            pass
-        return False
+            return False
             
     def setup_hotkeys(self):
         self.gg_sign_running = False
-        
+
         try:
-            keyboard.unhook_all()
-            if MOUSE_AVAILABLE:
-                mouse.unhook_all()
+            for listener in self.active_listeners:
+                listener.stop()
+            self.active_listeners.clear()
+
+            for macro_key, macro_data in self.macros.items():
+                keybind = macro_data.get("keybind")
+                if not keybind:
+                    continue
+
+                if keybind.startswith("mouse_"):
+                    mouse_button = keybind.replace("mouse_", "")
+                    if macro_key == "gg_sign_clip":
+                        self.setup_mouse_hold_macro(macro_key, mouse_button)
+                    else:
+                        self.setup_mouse_click_macro(macro_key, mouse_button)
+                else:
+                    if macro_key == "gg_sign_clip":
+                        self.setup_keyboard_hold_macro(macro_key, keybind)
+                    else:
+                        self.setup_keyboard_click_macro(macro_key, keybind)
         except:
             pass
-            
-        self.active_hooks.clear()
-        self.mouse_hooks.clear()
-        
-        for macro_key, macro_data in self.macros.items():
-            keybind = macro_data.get("keybind")
-            if not keybind:
-                continue
-                
-            if keybind.startswith("mouse_"):
-                if not MOUSE_AVAILABLE:
-                    print(f"Mouse keybind '{keybind}' not available on this platform")
-                    continue
-                mouse_button = keybind.replace("mouse_", "")
-                if macro_key == "gg_sign_clip":
-                    self.setup_mouse_hold_macro(macro_key, mouse_button)
-                else:
-                    self.setup_mouse_click_macro(macro_key, mouse_button)
-            else:
-                if macro_key == "gg_sign_clip":
-                    self.setup_keyboard_hold_macro(macro_key, keybind)
-                else:
-                    self.setup_keyboard_click_macro(macro_key, keybind)
-                    
+
     def setup_mouse_hold_macro(self, macro_key, mouse_button):
-        if not MOUSE_AVAILABLE:
-            return
-            
         is_pressed = [False]
-        
-        def on_mouse_event(event):
-            if isinstance(event, mouse.ButtonEvent) and event.button == mouse_button:
-                if event.event_type == 'down' and self.is_roblox_focused() and self.macros_enabled:
-                    if not is_pressed[0]:
-                        is_pressed[0] = True
-                        self.start_gg_clip()
-                elif event.event_type == 'up':
-                    if is_pressed[0]:
+
+        def on_click(x, y, button, pressed):
+            try:
+                btn_map = {
+                    "left": pynput_mouse.Button.left,
+                    "right": pynput_mouse.Button.right,
+                    "middle": pynput_mouse.Button.middle
+                }
+                if button == btn_map.get(mouse_button):
+                    if pressed and self.is_roblox_focused() and self.macros_enabled:
+                        if not is_pressed[0]:
+                            is_pressed[0] = True
+                            self.start_gg_clip()
+                    elif not pressed and is_pressed[0]:
                         is_pressed[0] = False
                         self.stop_gg_clip()
-        
-        hook = mouse.hook(on_mouse_event)
-        self.mouse_hooks.append(hook)
-        
+            except:
+                pass
+
+        listener = pynput_mouse.Listener(on_click=on_click)
+        listener.start()
+        self.active_listeners.append(listener)
+
     def setup_mouse_click_macro(self, macro_key, mouse_button):
-        if not MOUSE_AVAILABLE:
-            return
-            
-        def on_mouse_event(event):
-            if isinstance(event, mouse.ButtonEvent) and event.button == mouse_button and event.event_type == 'down':
-                if self.is_roblox_focused() and self.macros_enabled:
-                    self.execute_macro(macro_key)
-        
-        hook = mouse.hook(on_mouse_event)
-        self.mouse_hooks.append(hook)
-        
+        def on_click(x, y, button, pressed):
+            try:
+                btn_map = {
+                    "left": pynput_mouse.Button.left,
+                    "right": pynput_mouse.Button.right,
+                    "middle": pynput_mouse.Button.middle
+                }
+                if button == btn_map.get(mouse_button) and pressed:
+                    if self.is_roblox_focused() and self.macros_enabled:
+                        self.execute_macro(macro_key)
+            except:
+                pass
+
+        listener = pynput_mouse.Listener(on_click=on_click)
+        listener.start()
+        self.active_listeners.append(listener)
+    
     def setup_keyboard_hold_macro(self, macro_key, keybind):
         is_pressed = [False]
-        
-        def on_press(event):
-            if event.name == keybind and self.is_roblox_focused() and self.macros_enabled and not is_pressed[0]:
-                is_pressed[0] = True
-                self.start_gg_clip()
-        
-        def on_release(event):
-            if event.name == keybind and is_pressed[0]:
-                is_pressed[0] = False
-                self.stop_gg_clip()
-        
-        hook1 = keyboard.on_press(on_press)
-        hook2 = keyboard.on_release(on_release)
-        self.active_hooks.extend([hook1, hook2])
-        
+
+        def on_press(key):
+            try:
+                if hasattr(key, 'char') and key.char == keybind:
+                    if self.is_roblox_focused() and self.macros_enabled and not is_pressed[0]:
+                        is_pressed[0] = True
+                        self.start_gg_clip()
+            except:
+                pass
+
+        def on_release(key):
+            try:
+                if hasattr(key, 'char') and key.char == keybind and is_pressed[0]:
+                    is_pressed[0] = False
+                    self.stop_gg_clip()
+            except:
+                pass
+
+        listener = pynput_keyboard.Listener(on_press=on_press, on_release=on_release)
+        listener.start()
+        self.active_listeners.append(listener)
+    
     def setup_keyboard_click_macro(self, macro_key, keybind):
-        def on_press(event):
-            if event.name == keybind and self.is_roblox_focused() and self.macros_enabled:
-                self.execute_macro(macro_key)
-        
-        try:
-            hook = keyboard.on_press_key(keybind, on_press)
-            self.active_hooks.append(hook)
-        except:
-            def on_press_general(event):
-                if event.name == keybind and self.is_roblox_focused() and self.macros_enabled:
-                    self.execute_macro(macro_key)
-            hook = keyboard.on_press(on_press_general)
-            self.active_hooks.append(hook)
+        def on_press(key):
+            try:
+                if hasattr(key, 'char') and key.char == keybind:
+                    if self.is_roblox_focused() and self.macros_enabled:
+                        self.execute_macro(macro_key)
+            except:
+                pass
+
+        listener = pynput_keyboard.Listener(on_press=on_press)
+        listener.start()
+        self.active_listeners.append(listener)
         
     def start_gg_clip(self):
         if not self.gg_sign_running:
@@ -1127,8 +952,9 @@ class MM2MacroGUI(QMainWindow):
             if not self.is_roblox_focused() or not self.macros_enabled:
                 time.sleep(0.1)
                 continue
-            keyboard.send('3')
-            time.sleep(0.03)
+            self.kb_controller.press('3')
+            self.kb_controller.release('3')
+            time.sleep(0.005)
             
     def execute_macro(self, macro_key):
         if not self.is_roblox_focused() or not self.macros_enabled:
@@ -1144,72 +970,89 @@ class MM2MacroGUI(QMainWindow):
         
         if macro_key in macro_functions:
             threading.Thread(target=macro_functions[macro_key], daemon=True).start()
-            
+    
     def quick_setup_macro(self):
-        keyboard.send('2')
+        self.kb_controller.press('2')
+        self.kb_controller.release('2')
         time.sleep(0.1)
-        keyboard.send(self.item_keys.get("gg_sign", "6"))
+        self.kb_controller.press(self.item_keys.get("gg_sign", "6"))
+        self.kb_controller.release(self.item_keys.get("gg_sign", "6"))
         time.sleep(0.1)
-        keyboard.send('2')
+        self.kb_controller.press('2')
+        self.kb_controller.release('2')
         time.sleep(0.1)
-        keyboard.send(self.item_keys.get("prank_bomb", "7"))
+        self.kb_controller.press(self.item_keys.get("prank_bomb", "7"))
+        self.kb_controller.release(self.item_keys.get("prank_bomb", "7"))
         time.sleep(0.3)
-        keyboard.send('3')
+        self.kb_controller.press('3')
+        self.kb_controller.release('3')
         
     def bouncy_twirl_macro(self):
-        keyboard.send('.')
+        self.kb_controller.press('.')
+        self.kb_controller.release('.')
         time.sleep(0.035)
-        keyboard.send('1')
+        self.kb_controller.press('1')
+        self.kb_controller.release('1')
         time.sleep(1.0)
-        keyboard.send('shift')
+        self.kb_controller.press(pynput_keyboard.Key.shift)
+        self.kb_controller.release(pynput_keyboard.Key.shift)
         time.sleep(0.05)
-        keyboard.press('w')
-        keyboard.send('3')
+        self.kb_controller.press('w')
+        self.kb_controller.press('3')
+        self.kb_controller.release('3')
         time.sleep(0.015)
-        keyboard.release('w')
+        self.kb_controller.release('w')
         time.sleep(0.075)
-        keyboard.send('3')
-        
+        self.kb_controller.press('3')
+        self.kb_controller.release('3')
+
     def bomb_jump_macro(self):
-        keyboard.press('space')
+        self.kb_controller.press(pynput_keyboard.Key.space)
         time.sleep(0.25)
-        keyboard.send('4')
+        self.kb_controller.press('4')
+        self.kb_controller.release('4')
         time.sleep(0.025)
-        if MOUSE_AVAILABLE:
-            mouse.click('left')
-        else:
-            print("Mouse click not available on this platform - bomb jump may not work fully")
+        self.mouse_controller.click(pynput_mouse.Button.left)
         time.sleep(0.025)
-        keyboard.send('4')
+        self.kb_controller.press('4')
+        self.kb_controller.release('4')
         time.sleep(0.5)
-        keyboard.release('space')
+        self.kb_controller.release(pynput_keyboard.Key.space)
         
     def bouncy_twirl_speed_glitch_macro(self):
-        keyboard.send('.')
+        self.kb_controller.press('.')
+        self.kb_controller.release('.')
         time.sleep(0.035)
-        keyboard.send('1')
+        self.kb_controller.press('1')
+        self.kb_controller.release('1')
         time.sleep(2.7)
-        keyboard.send('3')
+        self.kb_controller.press('3')
+        self.kb_controller.release('3')
         time.sleep(0.05)
-        keyboard.press('w')
+        self.kb_controller.press('w')
         time.sleep(0.05)
-        keyboard.send('3')
+        self.kb_controller.press('3')
+        self.kb_controller.release('3')
         time.sleep(0.025)
-        keyboard.release('w')
+        self.kb_controller.release('w')
         
     def flex_walk_speed_glitch_macro(self):
-        keyboard.send('.')
+        self.kb_controller.press('.')
+        self.kb_controller.release('.')
         time.sleep(0.035)
-        keyboard.send('3')
+        self.kb_controller.press('3')
+        self.kb_controller.release('3')
         time.sleep(1.75)
-        keyboard.send('3')
+        self.kb_controller.press('3')
+        self.kb_controller.release('3')
         time.sleep(0.05)
-        keyboard.press('w')
+        self.kb_controller.press('w')
         time.sleep(0.05)
-        keyboard.send('3')
+        self.kb_controller.press('3')
+        self.kb_controller.release('3')
         time.sleep(0.025)
-        keyboard.release('w')
-        
+        self.kb_controller.release('w')
+
     def load_settings(self):
         try:
             if self.settings_file.exists():
@@ -1224,12 +1067,8 @@ class MM2MacroGUI(QMainWindow):
                         self.settings["keybinds"] = saved_settings["keybinds"]
                     if "item_keys" in saved_settings:
                         self.settings["item_keys"].update(saved_settings["item_keys"])
-                    
-                    if "keybinds" not in saved_settings and any(key in saved_settings for key in self.macros.keys()):
-                        self.settings["keybinds"] = {key: saved_settings[key] for key in self.macros.keys() if key in saved_settings}
-                        
-        except Exception as e:
-            print(f"Failed to load settings: {e}")
+        except:
+            pass
             
     def save_settings(self):
         try:
@@ -1245,9 +1084,8 @@ class MM2MacroGUI(QMainWindow):
             
             with open(self.settings_file, 'w') as f:
                 json.dump(self.settings, f, indent=2)
-                
-        except Exception as e:
-            print(f"Failed to save settings: {e}")
+        except:
+            pass
             
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -1258,58 +1096,46 @@ class MM2MacroGUI(QMainWindow):
         QTimer.singleShot(500, self.save_settings)
             
     def closeEvent(self, event):
-        self.save_settings()
-        self.gg_sign_running = False
-        if self.status_thread:
-            self.status_thread.stop()
-        
-        for hook in self.active_hooks:
-            try:
-                keyboard.unhook(hook)
-            except:
-                pass
-                
-        if MOUSE_AVAILABLE:
-            for hook in self.mouse_hooks:
-                try:
-                    mouse.unhook(hook)
-                except:
-                    pass
-        
         try:
-            keyboard.unhook_all()
-            if MOUSE_AVAILABLE:
-                mouse.unhook_all()
+            self.save_settings()
+            self.gg_sign_running = False
+
+            if hasattr(self, 'status_thread') and self.status_thread:
+                self.status_thread.stop()
+                self.status_thread.wait(1000)
+
+            for listener in self.active_listeners:
+                listener.stop()
+            self.active_listeners.clear()
+
+            if hasattr(self, 'gg_sign_thread') and self.gg_sign_thread:
+                if self.gg_sign_thread.is_alive():
+                    self.gg_sign_thread.join(timeout=1.0)
         except:
             pass
-        
+
         event.accept()
+        QApplication.quit()
 
 def main():
-    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
-
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
+    window = MM2MacroGUI()
+    window.show()
     
     try:
-        window = MM2MacroGUI()
-        window.show()
-        sys.exit(app.exec_())
-    except ImportError as e:
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Critical)
-        msg.setText("Missing required libraries. Please install them with:")
-        if platform.system() == "Darwin":
-            msg.setInformativeText("pip install PyQt5 keyboard mouse psutil pyobjc-framework-Cocoa")
+        if hasattr(app, 'exec'):
+            result = app.exec()
         else:
-            msg.setInformativeText("pip install PyQt5 keyboard mouse psutil pywin32")
-        msg.exec_()
-    except Exception as e:
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Critical)
-        msg.setText(f"Error: {e}")
-        msg.exec_()
+            result = app.exec_()
+        return result
+    except:
+        return 1
 
 if __name__ == "__main__":
-    main()
+    try:
+        sys.exit(main())
+    except SystemExit:
+        pass
+    except:
+        sys.exit(1)
