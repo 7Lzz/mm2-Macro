@@ -3,10 +3,18 @@ import json
 import time
 import threading
 import platform
+import traceback
 from pathlib import Path
 import psutil
 import keyboard
-import mouse
+
+try:
+    import mouse
+    MOUSE_AVAILABLE = True
+except (ImportError, OSError) as e:
+    print(f"Mouse library not available: {e}")
+    MOUSE_AVAILABLE = False
+    mouse = None
 
 try:
     from PyQt5.QtWidgets import *
@@ -28,6 +36,39 @@ except ImportError:
         from PySide2.QtCore import Signal  # type: ignore
         QT_BINDING = "PySide2"
 
+def show_error(title, message, details=None):
+    """Show error dialog with details"""
+    try:
+        app = QApplication.instance()
+        if app is None:
+            app = QApplication(sys.argv)
+        
+        msg_box = QMessageBox()
+        msg_box.setIcon(QMessageBox.Critical)
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        
+        if details:
+            msg_box.setDetailedText(details)
+        
+        msg_box.exec_()
+    except Exception as e:
+        print(f"Error showing dialog: {e}")
+        print(f"Original error: {title} - {message}")
+        if details:
+            print(f"Details: {details}")
+
+def handle_exception(exc_type, exc_value, exc_traceback):
+    """Global exception handler"""
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    
+    error_msg = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+    show_error("Application Error", str(exc_value), error_msg)
+
+sys.excepthook = handle_exception
+
 if platform.system() == "Windows":
     try:
         import win32gui
@@ -36,7 +77,7 @@ if platform.system() == "Windows":
         print("Warning: win32 modules not available")
 elif platform.system() == "Darwin":
     try:
-        from AppKit import NSWorkspace, NSRunningApplication  # type: ignore
+        from AppKit import NSWorkspace, NSRunningApplication
     except ImportError:
         print("Warning: AppKit not available")
 
@@ -80,7 +121,7 @@ class KeybindCaptureDialog(QDialog):
         layout = QVBoxLayout()
         layout.setSpacing(15)
         
-        self.info_label = QLabel("Press any key or mouse button...")
+        self.info_label = QLabel("Press any key or mouse button..." if MOUSE_AVAILABLE else "Press any key...")
         self.info_label.setAlignment(Qt.AlignCenter)
         self.info_label.setStyleSheet("font-size: 14px; color: #00d4ff;")
         layout.addWidget(self.info_label)
@@ -150,7 +191,7 @@ class KeybindCaptureDialog(QDialog):
             self.ok_btn.setEnabled(True)
             return True
             
-        elif event.type() == QEvent.MouseButtonPress:
+        elif event.type() == QEvent.MouseButtonPress and MOUSE_AVAILABLE:
             button = event.button()
             if button == Qt.LeftButton:
                 self.captured_key = "mouse_left"
@@ -501,7 +542,8 @@ class MM2MacroGUI(QMainWindow):
                           "• Make sure your items are in the correct slots\n"
                           "• Changes are saved automatically\n"
                           f"• Platform: {platform.system()}\n"
-                          f"• Qt Binding: {QT_BINDING}")
+                          f"• Qt Binding: {QT_BINDING}\n"
+                          f"• Mouse Support: {'Available' if MOUSE_AVAILABLE else 'Not Available (macOS limitation)'}")
         info_text.setObjectName("infoLabel")
         info_text.setWordWrap(True)
         info_layout.addWidget(info_text)
@@ -910,7 +952,8 @@ class MM2MacroGUI(QMainWindow):
         
         try:
             keyboard.unhook_all()
-            mouse.unhook_all()
+            if MOUSE_AVAILABLE:
+                mouse.unhook_all()
         except:
             pass
             
@@ -923,6 +966,9 @@ class MM2MacroGUI(QMainWindow):
                 continue
                 
             if keybind.startswith("mouse_"):
+                if not MOUSE_AVAILABLE:
+                    print(f"Mouse keybind '{keybind}' not available on this platform")
+                    continue
                 mouse_button = keybind.replace("mouse_", "")
                 if macro_key == "gg_sign_clip":
                     self.setup_mouse_hold_macro(macro_key, mouse_button)
@@ -935,6 +981,9 @@ class MM2MacroGUI(QMainWindow):
                     self.setup_keyboard_click_macro(macro_key, keybind)
                     
     def setup_mouse_hold_macro(self, macro_key, mouse_button):
+        if not MOUSE_AVAILABLE:
+            return
+            
         is_pressed = [False]
         
         def on_mouse_event(event):
@@ -952,6 +1001,9 @@ class MM2MacroGUI(QMainWindow):
         self.mouse_hooks.append(hook)
         
     def setup_mouse_click_macro(self, macro_key, mouse_button):
+        if not MOUSE_AVAILABLE:
+            return
+            
         def on_mouse_event(event):
             if isinstance(event, mouse.ButtonEvent) and event.button == mouse_button and event.event_type == 'down':
                 if self.is_roblox_focused() and self.macros_enabled:
@@ -1054,7 +1106,10 @@ class MM2MacroGUI(QMainWindow):
         time.sleep(0.25)
         keyboard.send('4')
         time.sleep(0.025)
-        mouse.click('left')
+        if MOUSE_AVAILABLE:
+            mouse.click('left')
+        else:
+            print("Mouse click not available on this platform - bomb jump may not work fully")
         time.sleep(0.025)
         keyboard.send('4')
         time.sleep(0.5)
@@ -1145,15 +1200,17 @@ class MM2MacroGUI(QMainWindow):
             except:
                 pass
                 
-        for hook in self.mouse_hooks:
-            try:
-                mouse.unhook(hook)
-            except:
-                pass
+        if MOUSE_AVAILABLE:
+            for hook in self.mouse_hooks:
+                try:
+                    mouse.unhook(hook)
+                except:
+                    pass
         
         try:
             keyboard.unhook_all()
-            mouse.unhook_all()
+            if MOUSE_AVAILABLE:
+                mouse.unhook_all()
         except:
             pass
         
