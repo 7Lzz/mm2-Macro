@@ -59,11 +59,16 @@ jobs:
       run: |
         pyinstaller --onedir --windowed --name "MM2-Macro-macOS" main_pyside6.py
 
+    - name: Create macOS distribution archive
+      run: |
+        cd dist
+        zip -r MM2-Macro-macOS.zip MM2-Macro-macOS.app
+
     - name: Upload macOS executable
       uses: actions/upload-artifact@v4
       with:
         name: MM2-Macro-macOS
-        path: dist/MM2-Macro-macOS.app
+        path: dist/MM2-Macro-macOS.zip
 
   create-release:
     needs: [build-windows, build-macos]
@@ -92,11 +97,11 @@ jobs:
           
           **Download:**
           - Windows: MM2-Macro-Windows.exe
-          - macOS: MM2-Macro-macOS.app (Extract and run)
+          - macOS: MM2-Macro-macOS.zip (Extract and run the .app inside)
           
           **Note:** macOS version uses PySide6 for compatibility
         files: |
           ./windows/MM2-Macro-Windows.exe
-          ./macos/MM2-Macro-macOS.app/**
+          ./macos/MM2-Macro-macOS.zip
         draft: false
         prerelease: false
