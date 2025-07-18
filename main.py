@@ -24,16 +24,16 @@ try:
     QT_BINDING = "PyQt5"
 except ImportError:
     try:
-        from PySide6.QtWidgets import *  # type: ignore
-        from PySide6.QtCore import *  # type: ignore
-        from PySide6.QtGui import *  # type: ignore
-        from PySide6.QtCore import Signal  # type: ignore
+        from PySide6.QtWidgets import *
+        from PySide6.QtCore import *
+        from PySide6.QtGui import *
+        from PySide6.QtCore import Signal
         QT_BINDING = "PySide6"
     except ImportError:
-        from PySide2.QtWidgets import *  # type: ignore
-        from PySide2.QtCore import *  # type: ignore
-        from PySide2.QtGui import *  # type: ignore
-        from PySide2.QtCore import Signal  # type: ignore
+        from PySide2.QtWidgets import *
+        from PySide2.QtCore import *
+        from PySide2.QtGui import *
+        from PySide2.QtCore import Signal
         QT_BINDING = "PySide2"
 
 def show_error(title, message, details=None):
@@ -364,6 +364,7 @@ class MM2MacroGUI(QMainWindow):
         self.active_hooks = []
         self.mouse_hooks = []
         self.macros_enabled = True
+        self.keyboard_permission_checked = False
         
         self.load_settings()
         
@@ -380,10 +381,72 @@ class MM2MacroGUI(QMainWindow):
         self.apply_loaded_settings()
         
         QTimer.singleShot(100, self.setup_hotkeys)
+        QTimer.singleShot(2000, self.check_macos_permissions)
         
         self.status_thread = StatusThread(self)
         self.status_thread.status_update.connect(self.update_focus_status)
         self.status_thread.start()
+        
+    def check_macos_permissions(self):
+        """Check if macOS permissions are working and show alert if not"""
+        if platform.system() != "Darwin" or self.keyboard_permission_checked:
+            return
+            
+        self.keyboard_permission_checked = True
+        
+        # Try to test keyboard permission by attempting to register a test hook
+        try:
+            def test_callback(event):
+                pass
+            
+            # This will fail silently if no Input Monitoring permission
+            test_hook = keyboard.on_press(test_callback)
+            keyboard.unhook(test_hook)
+            
+            # Additional check - try to detect if we can actually capture events
+            QTimer.singleShot(1000, self.show_macos_permission_reminder)
+            
+        except Exception as e:
+            print(f"Keyboard permission test failed: {e}")
+            self.show_macos_permission_alert()
+    
+    def show_macos_permission_reminder(self):
+        """Show a reminder about macOS permissions"""
+        if platform.system() != "Darwin":
+            return
+            
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Information)
+        msg.setWindowTitle("macOS Permissions Required")
+        msg.setText("For keybinds to work properly on macOS:")
+        msg.setInformativeText("1. Open System Preferences → Security & Privacy → Privacy\n"
+                               "2. Click 'Input Monitoring' in the sidebar\n"
+                               "3. Click the lock to unlock settings\n"
+                               "4. Check the box next to 'MM2-Macro-macOS'\n"
+                               "5. Restart this application\n\n"
+                               "This permission allows the app to detect your keyboard shortcuts.")
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec_()
+    
+    def show_macos_permission_alert(self):
+        """Show alert when permissions definitely aren't working"""
+        if platform.system() != "Darwin":
+            return
+            
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Warning)
+        msg.setWindowTitle("Keyboard Access Required")
+        msg.setText("Keyboard shortcuts will not work without Input Monitoring permission.")
+        msg.setInformativeText("Please enable Input Monitoring permission in System Preferences and restart the app.")
+        msg.setDetailedText("Steps:\n"
+                           "1. Open System Preferences\n"
+                           "2. Go to Security & Privacy → Privacy\n"
+                           "3. Click 'Input Monitoring'\n"
+                           "4. Click the lock and enter your password\n"
+                           "5. Check the box next to this app\n"
+                           "6. Restart the application")
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec_()
         
     def setup_ui(self):
         central_widget = QWidget()
@@ -543,7 +606,13 @@ class MM2MacroGUI(QMainWindow):
                           "• Changes are saved automatically\n"
                           f"• Platform: {platform.system()}\n"
                           f"• Qt Binding: {QT_BINDING}\n"
-                          f"• Mouse Support: {'Available' if MOUSE_AVAILABLE else 'Not Available (macOS limitation)'}")
+                          f"• Mouse Support: {'Available' if MOUSE_AVAILABLE else 'Not Available (macOS limitation)'}\n\n"
+                          "macOS Users: If keybinds don't work, enable permissions:\n"
+                          "1. Open System Preferences → Security & Privacy → Privacy\n"
+                          "2. Click 'Input Monitoring' in the sidebar\n"
+                          "3. Click the lock to unlock settings\n"
+                          "4. Check the box next to 'MM2-Macro-macOS'\n"
+                          "5. Restart the application")
         info_text.setObjectName("infoLabel")
         info_text.setWordWrap(True)
         info_layout.addWidget(info_text)
