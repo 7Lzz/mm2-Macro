@@ -1,14 +1,14 @@
 name: Build MM2 Macro Executables
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   build-windows:
@@ -49,17 +49,21 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install PyQt5 keyboard mouse psutil pyobjc-framework-Cocoa pyinstaller
+        pip install PySide2 keyboard mouse psutil pyinstaller
 
-    - name: Build macOS executable
+    - name: Create PySide2 version of main.py
       run: |
-        pyinstaller --onefile --windowed --name "MM2-Macro-macOS" main.py
+        sed 's/from PyQt5/from PySide2/g; s/import PyQt5/import PySide2/g; s/pyqtSignal/Signal/g' main.py > main_pyside2.py
+
+    - name: Build macOS app bundle
+      run: |
+        pyinstaller --onedir --windowed --name "MM2-Macro-macOS" main_pyside2.py
 
     - name: Upload macOS executable
       uses: actions/upload-artifact@v4
       with:
         name: MM2-Macro-macOS
-        path: dist/MM2-Macro-macOS
+        path: dist/MM2-Macro-macOS.app
 
   create-release:
     needs: [build-windows, build-macos]
@@ -88,9 +92,11 @@ jobs:
           
           **Download:**
           - Windows: MM2-Macro-Windows.exe
-          - macOS: MM2-Macro-macOS
+          - macOS: MM2-Macro-macOS.app (Extract and run)
+          
+          **Note:** macOS version uses PySide2 for compatibility
         files: |
           ./windows/MM2-Macro-Windows.exe
-          ./macos/MM2-Macro-macOS
+          ./macos/MM2-Macro-macOS.app/**
         draft: false
         prerelease: false

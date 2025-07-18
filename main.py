@@ -7,16 +7,23 @@ from pathlib import Path
 import psutil
 import keyboard
 import mouse
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
+try:
+    from PyQt5.QtWidgets import *  # type: ignore
+    from PyQt5.QtCore import *  # type: ignore
+    from PyQt5.QtGui import *  # type: ignore
+    from PyQt5.QtCore import pyqtSignal as Signal  # type: ignore
+except ImportError:
+    from PySide2.QtWidgets import *  # type: ignore
+    from PySide2.QtCore import *  # type: ignore
+    from PySide2.QtGui import *  # type: ignore
+    from PySide2.QtCore import Signal  # type: ignore
 
 if platform.system() == "Windows":
     import win32gui
     import win32process
 elif platform.system() == "Darwin":
     try:
-        from AppKit import NSWorkspace, NSRunningApplication
+        from AppKit import NSWorkspace, NSRunningApplication # type: ignore
     except ImportError:
         pass
 
