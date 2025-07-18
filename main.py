@@ -7,34 +7,47 @@ from pathlib import Path
 import psutil
 import keyboard
 import mouse
+
 try:
-    from PyQt5.QtWidgets import *  # type: ignore
-    from PyQt5.QtCore import *  # type: ignore
-    from PyQt5.QtGui import *  # type: ignore
-    from PyQt5.QtCore import pyqtSignal as Signal  # type: ignore
+    from PyQt5.QtWidgets import *
+    from PyQt5.QtCore import *
+    from PyQt5.QtGui import *
+    from PyQt5.QtCore import pyqtSignal as Signal
+    QT_BINDING = "PyQt5"
 except ImportError:
-    from PySide2.QtWidgets import *  # type: ignore
-    from PySide2.QtCore import *  # type: ignore
-    from PySide2.QtGui import *  # type: ignore
-    from PySide2.QtCore import Signal  # type: ignore
+    try:
+        from PySide6.QtWidgets import *  # type: ignore
+        from PySide6.QtCore import *  # type: ignore
+        from PySide6.QtGui import *  # type: ignore
+        from PySide6.QtCore import Signal  # type: ignore
+        QT_BINDING = "PySide6"
+    except ImportError:
+        from PySide2.QtWidgets import *  # type: ignore
+        from PySide2.QtCore import *  # type: ignore
+        from PySide2.QtGui import *  # type: ignore
+        from PySide2.QtCore import Signal  # type: ignore
+        QT_BINDING = "PySide2"
 
 if platform.system() == "Windows":
-    import win32gui
-    import win32process
+    try:
+        import win32gui
+        import win32process
+    except ImportError:
+        print("Warning: win32 modules not available")
 elif platform.system() == "Darwin":
     try:
-        from AppKit import NSWorkspace, NSRunningApplication # type: ignore
+        from AppKit import NSWorkspace, NSRunningApplication  # type: ignore
     except ImportError:
-        pass
+        print("Warning: AppKit not available")
 
 class ClickableLabel(QLabel):
-    clicked = pyqtSignal()
+    clicked = Signal()
     
     def mousePressEvent(self, event):
         self.clicked.emit()
 
 class StatusThread(QThread):
-    status_update = pyqtSignal(str, str)
+    status_update = Signal(str, str)
     
     def __init__(self, parent):
         super().__init__()
@@ -487,7 +500,8 @@ class MM2MacroGUI(QMainWindow):
         info_text = QLabel("• Quick Setup uses GG Sign and Prank Bomb\n"
                           "• Make sure your items are in the correct slots\n"
                           "• Changes are saved automatically\n"
-                          f"• Platform: {platform.system()}")
+                          f"• Platform: {platform.system()}\n"
+                          f"• Qt Binding: {QT_BINDING}")
         info_text.setObjectName("infoLabel")
         info_text.setWordWrap(True)
         info_layout.addWidget(info_text)
