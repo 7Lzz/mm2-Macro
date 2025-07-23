@@ -256,6 +256,7 @@ class MM2MacroGUI(QMainWindow):
             "quick_setup": {"name": "Quick Setup", "keybind": None, "active": False},
             "gg_sign_clip": {"name": "GG Sign Clip", "keybind": None, "active": False},
             "bouncy_twirl": {"name": "Bouncy Twirl Clip", "keybind": None, "active": False},
+            "flex_walk": {"name": "Flex Walk Clip", "keybind": None, "active": False},
             "bomb_jump": {"name": "Bomb Jump", "keybind": None, "active": False},
             "bouncy_twirl_speed_glitch": {"name": "Bouncy Twirl Speed Glitch", "keybind": None, "active": False},
             "flex_walk_speed_glitch": {"name": "Flex Walk Speed Glitch", "keybind": None, "active": False}
@@ -963,6 +964,7 @@ class MM2MacroGUI(QMainWindow):
         macro_functions = {
             "quick_setup": self.quick_setup_macro,
             "bouncy_twirl": self.bouncy_twirl_macro,
+            "flex_walk": self.flex_walk_macro,
             "bomb_jump": self.bomb_jump_macro,
             "bouncy_twirl_speed_glitch": self.bouncy_twirl_speed_glitch_macro,
             "flex_walk_speed_glitch": self.flex_walk_speed_glitch_macro
@@ -974,16 +976,19 @@ class MM2MacroGUI(QMainWindow):
     def quick_setup_macro(self):
         self.kb_controller.press('2')
         self.kb_controller.release('2')
-        time.sleep(0.1)
+        time.sleep(0.2)
         self.kb_controller.press(self.item_keys.get("gg_sign", "6"))
         self.kb_controller.release(self.item_keys.get("gg_sign", "6"))
-        time.sleep(0.1)
+        time.sleep(0.2)
         self.kb_controller.press('2')
         self.kb_controller.release('2')
-        time.sleep(0.1)
+        time.sleep(0.2)
         self.kb_controller.press(self.item_keys.get("prank_bomb", "7"))
         self.kb_controller.release(self.item_keys.get("prank_bomb", "7"))
-        time.sleep(0.3)
+        time.sleep(0.35)
+        self.kb_controller.press('3')
+        self.kb_controller.release('3')
+        time.sleep(0.1)
         self.kb_controller.press('3')
         self.kb_controller.release('3')
         
@@ -1005,15 +1010,34 @@ class MM2MacroGUI(QMainWindow):
         time.sleep(0.075)
         self.kb_controller.press('3')
         self.kb_controller.release('3')
+        
+    def flex_walk_macro(self):
+        self.kb_controller.press('.')
+        self.kb_controller.release('.')
+        time.sleep(0.035)
+        self.kb_controller.press('3')
+        self.kb_controller.release('3')
+        time.sleep(1.75)
+        self.kb_controller.press(pynput_keyboard.Key.shift)
+        self.kb_controller.release(pynput_keyboard.Key.shift)
+        time.sleep(0.05)
+        self.kb_controller.press('w')
+        self.kb_controller.press('3')
+        self.kb_controller.release('3')
+        time.sleep(0.015)
+        self.kb_controller.release('w')
+        time.sleep(0.075)
+        self.kb_controller.press('3')
+        self.kb_controller.release('3')
 
     def bomb_jump_macro(self):
         self.kb_controller.press(pynput_keyboard.Key.space)
-        time.sleep(0.25)
+        time.sleep(0.3)
         self.kb_controller.press('4')
         self.kb_controller.release('4')
-        time.sleep(0.025)
+        time.sleep(0.03)
         self.mouse_controller.click(pynput_mouse.Button.left)
-        time.sleep(0.025)
+        time.sleep(0.03)
         self.kb_controller.press('4')
         self.kb_controller.release('4')
         time.sleep(0.5)
@@ -1026,13 +1050,13 @@ class MM2MacroGUI(QMainWindow):
         self.kb_controller.press('1')
         self.kb_controller.release('1')
         time.sleep(2.7)
-        self.kb_controller.press('3')
-        self.kb_controller.release('3')
+        self.kb_controller.press('4')
+        self.kb_controller.release('4')
         time.sleep(0.05)
         self.kb_controller.press('w')
         time.sleep(0.05)
-        self.kb_controller.press('3')
-        self.kb_controller.release('3')
+        self.kb_controller.press('4')
+        self.kb_controller.release('4')
         time.sleep(0.025)
         self.kb_controller.release('w')
         
@@ -1043,13 +1067,13 @@ class MM2MacroGUI(QMainWindow):
         self.kb_controller.press('3')
         self.kb_controller.release('3')
         time.sleep(1.75)
-        self.kb_controller.press('3')
-        self.kb_controller.release('3')
+        self.kb_controller.press('4')
+        self.kb_controller.release('4')
         time.sleep(0.05)
         self.kb_controller.press('w')
         time.sleep(0.05)
-        self.kb_controller.press('3')
-        self.kb_controller.release('3')
+        self.kb_controller.press('4')
+        self.kb_controller.release('4')
         time.sleep(0.025)
         self.kb_controller.release('w')
 
